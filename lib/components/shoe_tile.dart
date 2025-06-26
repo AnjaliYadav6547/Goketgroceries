@@ -60,7 +60,7 @@ class ShoeTile extends StatelessWidget{
             
                     //price
                     Text(
-                      '\$' + shoe.price,
+                      '\$${shoe.price}',
                       style: const TextStyle(
                         color: Colors.grey,
                       ),

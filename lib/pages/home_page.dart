@@ -54,7 +54,7 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     // Create pages list in build method to access current state
-    final List<Widget> _pages = [
+    final List<Widget> pages = [
       const ShopPage(),
       const CartPage(),
       ProductPage(
@@ -157,7 +157,7 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
       ),
-      body: _pages[_selectedIndex],
+      body: pages[_selectedIndex],
     );
   }
 }

@@ -3,7 +3,6 @@ import 'package:flutter_application/models/cart.dart';
 import 'package:flutter_application/models/shoe.dart';
 import 'package:provider/provider.dart';
 import '../components/shoe_tile.dart';
-import '../models/shoe.dart';
 
 class ShopPage extends StatefulWidget{
   const ShopPage ({super.key});

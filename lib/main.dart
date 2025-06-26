@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_application/pages/auth_page.dart';
 import 'package:provider/provider.dart';
 import 'models/cart.dart';
-import 'pages/Intro_Page.dart';
-import 'pages/login_page.dart';
 import 'firebase_options.dart';
 
 void main() async {
