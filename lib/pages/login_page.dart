@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_application/components/my_button.dart';
 import 'package:flutter_application/components/my_textfield.dart';
@@ -6,10 +5,9 @@ import 'package:flutter_application/components/square_tile.dart';
 import 'home_page.dart';
 import 'register_page.dart';
 
-
-class LoginPage extends StatefulWidget{
+class LoginPage extends StatefulWidget {
   final Function()? onTap;
-  const LoginPage ({super.key, required this.onTap});
+  const LoginPage({super.key, required this.onTap});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -17,12 +15,11 @@ class LoginPage extends StatefulWidget{
 
 class _LoginPageState extends State<LoginPage> {
   final emailController = TextEditingController();
-
   final passwordContoller = TextEditingController();
 
   //sign user in method
   void signUserIn(BuildContext context) async {
-  // First validate inputs aren't empty
+    // First validate inputs aren't empty
     if (emailController.text.isEmpty || passwordContoller.text.isEmpty) {
       showErrorMessage("Please enter both email and password");
       return;
@@ -35,37 +32,17 @@ class _LoginPageState extends State<LoginPage> {
       builder: (context) => const Center(child: CircularProgressIndicator()),
     );
 
-    try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: emailController.text,
-        password: passwordContoller.text,
-      );
-      Navigator.pop(context); // Close loading dialog
-    } on FirebaseAuthException catch (e) {
-      Navigator.pop(context); // Close loading dialog first
-      String errorMessage;
-      
-      switch (e.code) {
-        case 'invalid-email':
-          errorMessage = "Please enter a valid email address";
-          break;
-        case 'user-disabled':
-          errorMessage = "This account has been disabled";
-          break;
-        case 'user-not-found':
-          errorMessage = "No account found with this email";
-          break;
-        case 'wrong-password':
-          errorMessage = "Incorrect password";
-          break;
-        default:
-          errorMessage = "Login failed. Please try again";
-      }
-      showErrorMessage(errorMessage);
-    } catch (e) {
-      Navigator.pop(context);
-      showErrorMessage("An unexpected error occurred");
-    }
+    // TODO: Replace with your own authentication logic
+    await Future.delayed(const Duration(seconds: 2)); // Simulate network delay
+    
+    Navigator.pop(context); // Close loading dialog
+    
+    // For demo purposes, we'll just navigate to home page if fields aren't empty
+    // In a real app, you would verify credentials first
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const HomePage()),
+    );
   }
 
   // show the error message 
@@ -113,7 +90,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
 
-              const SizedBox(height: 25 ),
+              const SizedBox(height: 25),
 
               //email textfield
               MyTextfield(
@@ -143,8 +120,8 @@ class _LoginPageState extends State<LoginPage> {
                       'Forget Password?',
                       style: TextStyle(color: Colors.grey[600]),
                     ),
-
-                ],),
+                  ],
+                ),
               ),
 
               const SizedBox(height: 25),
@@ -166,7 +143,7 @@ class _LoginPageState extends State<LoginPage> {
                       child: Divider(
                         thickness: 0.5,
                         color: Colors.grey[400],
-                      ), 
+                      ),
                     ),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 10.0),
@@ -179,9 +156,8 @@ class _LoginPageState extends State<LoginPage> {
                       child: Divider(
                         thickness: 0.5,
                         color: Colors.grey[400],
-                      ), 
+                      ),
                     ),
-                    
                   ],
                 ),
               ),
@@ -199,7 +175,6 @@ class _LoginPageState extends State<LoginPage> {
 
                   //apple button
                   SquareTile(imagePath: 'lib/images/apple.png'),
-
                 ],
               ),
               const SizedBox(height: 50),
@@ -215,26 +190,27 @@ class _LoginPageState extends State<LoginPage> {
                   const SizedBox(width: 4),
 
                   GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => RegisterPage(onTap: widget.onTap!,)),
-                    );
-                  },
-                  child: const Text(
-                    'Register Now',
-                    style: TextStyle(
-                      color: Colors.blue,
-                      fontWeight: FontWeight.bold,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => RegisterPage(onTap: widget.onTap!)),
+                      );
+                    },
+                    child: const Text(
+                      'Register Now',
+                      style: TextStyle(
+                        color: Colors.blue,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
   }
 }

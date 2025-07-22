@@ -1,4 +1,4 @@
-import 'package:firebase_auth/firebase_auth.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_application/components/my_button.dart';
 import 'package:flutter_application/components/my_textfield.dart';
@@ -68,43 +68,16 @@ class _RegisterPageState extends State<RegisterPage> {
         );
       },
     );
+     // TODO: Replace with your own registration logic
+    await Future.delayed(const Duration(seconds: 2)); // Simulate network delay
+    
+    //pop the loading circle
+    Navigator.pop(context);
+    
+    // For demo purposes, show success and redirect to login
+    showSuccessMessage("Registration successful! Please login");
 
-    try {
-      await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: emailController.text,
-        password: passwordContoller.text,
-      );
-
-      //pop the loading circle
-      Navigator.pop(context);
-      
-      // Show success message and redirect to login
-      showSuccessMessage("Registration successful! Please login");
-      
-    } on FirebaseAuthException catch (e) {
-      Navigator.pop(context);
-      String errorMessage;
-      switch (e.code) {
-        case 'email-already-in-use':
-          errorMessage = "Email is already in use";
-          break;
-        case 'invalid-email':
-          errorMessage = "Invalid email format";
-          break;
-        case 'operation-not-allowed':
-          errorMessage = "Email/password accounts are not enabled";
-          break;
-        case 'weak-password':
-          errorMessage = "Password is too weak";
-          break;
-        default:
-          errorMessage = "Registration failed: ${e.message}";
-      }
-      showErrorMessage(errorMessage);
-    } catch (e) {
-      Navigator.pop(context);
-      showErrorMessage("An unexpected error occurred");
-    }
+   
   }
 
   // success message after register

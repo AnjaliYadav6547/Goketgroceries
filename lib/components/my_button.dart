@@ -7,36 +7,43 @@ class MyButton extends StatelessWidget {
   final Color textColor;
   final EdgeInsetsGeometry padding;
   final EdgeInsetsGeometry margin;
+  final double? width;
+  final double? height;
 
   const MyButton({
     super.key, 
     required this.onTap, 
     required this.text,
-    this.backgroundColor = Colors.black,
+    this.backgroundColor = Colors.orange, // Changed default
     this.textColor = Colors.white,
-    this.padding = const EdgeInsets.all(25),
-    this.margin = const EdgeInsets.symmetric(horizontal: 25),
+    this.padding = const EdgeInsets.symmetric(vertical: 12, horizontal: 16), // Reduced
+    this.margin = EdgeInsets.zero, // Changed to zero
+    this.width,
+    this.height,
   });
     
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: padding,
-        margin: margin,
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: BorderRadius.circular(8),
+    return Container(
+      width: width, // Added width control
+      height: height, // Added height control
+      margin: margin,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: backgroundColor,
+          foregroundColor: textColor,
+          padding: padding,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
         ),
-        child: Center(
-          child: Text(
-            text,
-            style: TextStyle(
-              color: textColor,
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-            ),
+        onPressed: onTap,
+        child: Text(
+          text,
+          style: TextStyle(
+            color: textColor,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
           ),
         ),
       ),
