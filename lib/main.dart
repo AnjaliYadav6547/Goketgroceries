@@ -8,7 +8,8 @@ import 'package:flutter_application/pages/category_page.dart';
 import 'package:flutter_application/models/cart.dart';
 import 'package:flutter_application/pages/subcategory_page.dart';
 import 'package:provider/provider.dart';
-import 'models/category.dart';
+import 'models/category.dart' as models;
+
 
 void main() {
   runApp(
@@ -37,7 +38,7 @@ class MyApp extends StatelessWidget {
         '/products': (context) => const MainWrapper(initialIndex: 2),
         '/cart': (context) => const MainWrapper(initialIndex: 3),
         '/subcategory': (context) => SubCategoryPage(
-              category: ModalRoute.of(context)!.settings.arguments as Category,
+              category: ModalRoute.of(context)!.settings.arguments as models.Category,
             ),
         '/profile': (context) => const ProfilePage(),
       },

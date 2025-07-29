@@ -14,6 +14,13 @@ class ProductTile extends StatelessWidget {
     required this.onTap,
   });
 
+  // Helper method to determine if strikethrough should be shown
+  bool _shouldShowStrikethrough() {
+    if (!product.isOnSale) return false;
+    if (product.salePrice == null || product.salePrice == 0) return false;
+    return product.regularPrice > product.currentPrice;
+  }
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -30,17 +37,61 @@ class ProductTile extends StatelessWidget {
             Stack(
               children: [
                 Container(
-                  height: 120,
+                  height: 120, // Fixed height for the container
+                  width: double.infinity, // Take full width
                   decoration: BoxDecoration(
-                    borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(8)),
-                    image: DecorationImage(
-                      image: AssetImage(product.imageUrl),
-                      fit: BoxFit.cover,
-                    ),
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+                    color: Colors.grey.shade200,
                   ),
+                  child: product.imageUrl.isNotEmpty
+                      ? ClipRRect(
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+                          child: FittedBox(
+                            fit: BoxFit.cover,
+                            child: Image.network(
+                              product.imageUrl,
+                              width: MediaQuery.of(context).size.width, // Full width
+                              height: 120, // Match container height
+                              loadingBuilder: (context, child, loadingProgress) {
+                                return child;
+                              },
+                              errorBuilder: (context, error, stackTrace) {
+                                return Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.broken_image),
+                                      Text(
+                                        'Image not available',
+                                        style: TextStyle(fontSize: 8),
+                                        ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        )
+
+                    
+                      : Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.image_not_supported, size:20),
+                              const Text(
+                                'No image URL provided',
+                                style: TextStyle(fontSize: 10),
+                                ),
+                              Text(
+                                'Check debug logs',
+                                style: TextStyle(fontSize: 8, color: Colors.grey.shade600),
+                              ),
+                            ],
+                          ),
+                        ),
                 ),
-                if (product.isOnSale)
+                if (product.isOnSale && _shouldShowStrikethrough())
                   Positioned(
                     top: 8,
                     left: 8,
@@ -150,7 +201,7 @@ class ProductTile extends StatelessWidget {
                               fontSize: 14,
                             ),
                           ),
-                          if (product.isOnSale)
+                          if (_shouldShowStrikethrough())
                             Text(
                               'Rs ${product.regularPrice.toStringAsFixed(2)}',
                               style: TextStyle(

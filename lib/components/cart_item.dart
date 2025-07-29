@@ -74,7 +74,7 @@ class CartItem extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '\$${product.currentPrice.toStringAsFixed(2)}',
+                            '\$Rs{product.currentPrice.toStringAsFixed(2)}',
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
@@ -82,7 +82,7 @@ class CartItem extends StatelessWidget {
                           ),
                           if (product.isOnSale)
                             Text(
-                              'Was \$${product.regularPrice.toStringAsFixed(2)}',
+                              'Was \$Rs{product.regularPrice.toStringAsFixed(2)}',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey[600],
