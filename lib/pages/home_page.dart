@@ -1,502 +1,622 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_application/models/product.dart';
-import '../models/category.dart';
-import 'package:provider/provider.dart';
-import '../models/cart.dart';
+import 'dart:convert';
+import 'dart:math';
 
-class HomePage extends StatelessWidget {
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+
+import '../models/product.dart';
+import '../models/category.dart';
+
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  bool _loading = true;
+
+  // Parsed from API
+  final List<Category> _mainCategories = []; // grouped mains with subs
+  final List<Product> _flashDeals = [];
+
+  // Convenience: seeds for placeholder mosaics
+  final _rnd = Random();
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchAll();
+  }
+
+  Future<void> _fetchAll() async {
+    try {
+      final catRes =
+          await http.get(Uri.parse('https://api.goket.com.np/categories'));
+      final prodRes =
+          await http.get(Uri.parse('https://api.goket.com.np/products/'));
+
+      // ---- Categories parsing ----
+      final catJson = jsonDecode(catRes.body);
+      List rawCats = [];
+      if (catJson is List) {
+        rawCats = catJson;
+      } else if (catJson is Map && catJson['data'] is List) {
+        rawCats = catJson['data'];
+      }
+
+      // Group by main (left of '>'), collect sub (right-most)
+      final Map<String, Set<String>> grouped = {};
+      for (final c in rawCats) {
+        final rawName = (c['name'] ?? '').toString();
+        if (rawName.isEmpty) continue;
+
+        final parts = rawName.split('>');
+        final main = parts.first.trim();
+        final sub = parts.length > 1 ? parts.last.trim() : '';
+
+        // ignore noisy "ALL PRODUCTS" buckets
+        if (main.isEmpty || main.toLowerCase().contains('all products')) continue;
+
+        grouped.putIfAbsent(main, () => <String>{});
+        if (sub.isNotEmpty && !sub.toLowerCase().contains('all products')) {
+          grouped[main]!.add(sub);
+        }
+      }
+
+      _mainCategories
+        ..clear()
+        ..addAll(
+          grouped.entries.map(
+            (e) => Category(
+              id: e.key,
+              name: e.key,
+              subCategories: e.value
+                  .map((s) => SubCategory(id: s, name: s, products: const []))
+                  .toList()
+                ..sort((a, b) => a.name.compareTo(b.name)),
+            ),
+          ),
+        );
+
+      // ---- Products parsing ----
+      final prodJson = jsonDecode(prodRes.body);
+      List rawProds = [];
+      if (prodJson is List) {
+        rawProds = prodJson;
+      } else if (prodJson is Map && prodJson['data'] is List) {
+        rawProds = prodJson['data'];
+      }
+
+      final allProducts =
+          rawProds.map<Product>((p) => Product.fromMap(p)).toList();
+
+      // Shuffle and take 9-12 items (3 per row)
+      allProducts.shuffle(_rnd);
+      final takeCount = min(12, max(9, allProducts.length));
+      _flashDeals
+        ..clear()
+        ..addAll(allProducts.take(takeCount));
+
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+      debugPrint('Fetch error: $e');
+    }
+  }
+
+  // ---------- UI ----------
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SingleChildScrollView(
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : SafeArea(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildGradientHeader(context),
+
+                    // Top categories (6) with 2x2 mosaics
+                    const SizedBox(height: 12),
+                    _buildTopCategoriesMosaics(),
+
+                    // Category sections (about 4)
+                    ..._buildMainCategorySections(),
+
+                    // Flash Sale at the end
+                    _buildFlashSale(),
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
+            ),
+    );
+  }
+
+  // Header with gradient + search bar (rounded)
+  Widget _buildGradientHeader(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0xFF0C7B4C), // dark green
+            Color(0xFF57B88F), // light green
+          ],
+        ),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(28),
+          bottomRight: Radius.circular(28),
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text(
+                'Goket Groceries',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                width: 36,
+                height: 36,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [Colors.white70, Colors.white30],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          // Search bar with rounded background like design
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(.95),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: const TextField(
+              decoration: InputDecoration(
+                hintText: 'Search for groceries…',
+                hintStyle: TextStyle(color: Color(0xFF9AA0A6)),
+                prefixIcon: Icon(Icons.search),
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Build top 6 category mosaics
+  Widget _buildTopCategoriesMosaics() {
+    const preferred = [
+      'Vegetables & Fruits',
+      'Ghee & Masala',
+      'Bread & Eggs',
+      'Coffee & Milk Drinks',
+      'Rice & Dal',
+      'Snacks & Drink',
+    ];
+
+    final mainsByName = {for (final c in _mainCategories) c.name: c};
+
+    // Synthesize "Vegetables & Fruits" from Grocery & Kitchen subs if needed
+    Category? vegFruit;
+    final gk = mainsByName['Grocery & Kitchen'];
+    if (gk != null &&
+        gk.subCategories.any((s) => s.name.contains('Vegetables & Fruits'))) {
+      vegFruit = Category(
+        id: 'Vegetables & Fruits',
+        name: 'Vegetables & Fruits',
+        subCategories: gk.subCategories
+            .where((s) => s.name.contains('Vegetables & Fruits'))
+            .toList(),
+      );
+    }
+
+    final ordered = <Category>[
+      if (vegFruit != null) vegFruit,
+      if (mainsByName['Ghee & Masala'] != null) mainsByName['Ghee & Masala']!,
+      if (mainsByName['Bread & Eggs'] != null) mainsByName['Bread & Eggs']!,
+      if (mainsByName['Coffee & Milk Drinks'] != null)
+        mainsByName['Coffee & Milk Drinks']!,
+      if (mainsByName['Rice & Dal'] != null) mainsByName['Rice & Dal']!,
+      if (mainsByName['Snacks & Drink'] != null)
+        mainsByName['Snacks & Drink']!,
+    ];
+
+    if (ordered.length < 6) {
+      for (final c in _mainCategories) {
+        if (ordered.length >= 6) break;
+        if (ordered.every((e) => e.name != c.name)) {
+          ordered.add(c);
+        }
+      }
+    }
+    final top6 = ordered.take(6).toList();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: top6.length,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          childAspectRatio: .88,
+        ),
+        itemBuilder: (ctx, i) {
+          final c = top6[i];
+          final mosaic = _relatedMosaicForMain(c.name);
+          return _TopCategoryMosaicCard(
+            title: _displayTitleForTop(c.name),
+            images: mosaic,
+          );
+        },
+      ),
+    );
+  }
+
+  // Build about 4 main sections, each with up to 8 subcategories
+  List<Widget> _buildMainCategorySections() {
+    // Choose 4 mains (like the design)
+    final picks = <String>[
+      'Grocery & Kitchen',
+      'Snacks & Drink',
+      'Rice & Dal',
+      'Bread & Eggs',
+    ];
+
+    final selected = _mainCategories
+        .where((c) => picks.contains(c.name))
+        .toList(growable: false);
+
+    return selected.map((c) {
+      final subs = c.subCategories.take(8).toList();
+
+      return Padding(
+        padding: const EdgeInsets.only(left: 16, right: 16, top: 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header with delivery info
-            _buildHeaderSection(),
-            
-            // Search Bar
-            _buildSearchBar(),
-            
-            // Shop by Category
-            _buildCategorySection(context),
-            
-            // Shop by Store
-            _buildStoreSection(),
-            
-            // Hot Deals
-            _buildHotDealsSection(context),
-            
-            // Daily Fresh Needs
-            _buildDailyFreshSection(context),
-            
-            const SizedBox(height: 24),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeaderSection() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 40, 16, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Delivery in 15 minutes',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+            Text(
+              c.name,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Buddhanagar, Kathmandu, Nepal',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[600],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSearchBar() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: TextField(
-        decoration: InputDecoration(
-          hintText: 'Search groceries...',
-          prefixIcon: const Icon(Icons.search),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide.none,
-          ),
-          filled: true,
-          fillColor: Colors.grey[200],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCategorySection(BuildContext context) {
-    final categories = [
-      {'name': 'Vegetables & Fruits', 'image': 'assets/categories/vegetables.png'},
-      {'name': 'Dairy & Breakfast', 'image': 'assets/categories/dairy.png'},
-      {'name': 'Munchies', 'image': 'assets/categories/snacks.png'},
-      {'name': 'Home & Office', 'image': 'assets/categories/home.png'},
-      {'name': 'Personal Care', 'image': 'assets/categories/personal_care.png'},
-      {'name': 'Pet Care', 'image': 'assets/categories/pet_care.png'},
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            'Shop by category',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        GridView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            childAspectRatio: 0.9,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-          ),
-          itemCount: categories.length,
-          itemBuilder: (context, index) {
-            return _buildCategoryItem(
-              context,
-              categories[index]['name'] as String,
-              categories[index]['image'] as String,
-            );
-          },
-        ),
-        const SizedBox(height: 24),
-      ],
-    );
-  }
-
-  Widget _buildCategoryItem(BuildContext context, String name, String imagePath) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.pushNamed(
-          context,
-          '/subcategory',
-          arguments: Category(
-            id: name.toLowerCase().replaceAll(' ', '_'),
-            name: name, subCategories: [],
-          ),
-        );
-      },
-      child: Column(
-        children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: Colors.grey[200],
-              borderRadius: BorderRadius.circular(12),
-              image: DecorationImage(
-                image: AssetImage(imagePath),
-                fit: BoxFit.cover,
+            const SizedBox(height: 12),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: subs.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: .9,
               ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            name,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-            maxLines: 2,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStoreSection() {
-    final stores = [
-      {'name': 'Pet Store', 'image': 'assets/stores/pet_store.png'},
-      {'name': 'Stationery', 'image': 'assets/stores/stationery.png'},
-      {'name': 'Kids Store', 'image': 'assets/stores/kids.png'},
-      {'name': 'Pharmacy', 'image': 'assets/stores/pharmacy.png'},
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            'Shop by store',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        SizedBox(
-          height: 100,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: stores.length,
-            itemBuilder: (context, index) {
-              return Padding(
-                padding: const EdgeInsets.only(right: 16),
-                child: Column(
+              itemBuilder: (ctx, i) {
+                final s = subs[i];
+                return Column(
                   children: [
-                    Container(
-                      width: 64,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[200],
-                        borderRadius: BorderRadius.circular(12),
-                        image: DecorationImage(
-                          image: AssetImage(stores[index]['image'] as String),
-                          fit: BoxFit.cover,
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        _subCategoryThumb(main: c.name, sub: s.name),
+                        width: 72,
+                        height: 72,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          width: 72,
+                          height: 72,
+                          color: Colors.grey[200],
+                          child: const Icon(Icons.image_not_supported),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     Text(
-                      stores[index]['name'] as String,
+                      s.name,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 12),
                     ),
                   ],
-                ),
-              );
-            },
-          ),
+                );
+              },
+            ),
+          ],
         ),
-        const SizedBox(height: 24),
-      ],
+      );
+    }).toList();
+  }
+
+  // Flash sale grid 3 per row, 9-12 products
+  Widget _buildFlashSale() {
+    if (_flashDeals.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              'Flash Sale',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _flashDeals.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: .58,
+              ),
+              itemBuilder: (ctx, i) {
+                final p = _flashDeals[i];
+                return _FlashCard(product: p, fallbackGetter: _productPlaceholder);
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildHotDealsSection(BuildContext context) {
-    final hotDeals = [
-      Product(
-        id: '1',
-        name: 'Whole Farm Grocery Sugar',
-        category: 1, // Grocery
-        brand: 1, // Whole Farm
-        type: 'simple',
-        isFeatured: true,
-        inStock: true,
-        regularPrice: 75,
-        salePrice: 53,
-        sku: 'SUGAR001',
-        published: true,
-        createdAt: DateTime.now().subtract(const Duration(days: 30)),
-        updatedAt: DateTime.now(),
-        imageUrl: 'assets/products/sugar.png',
-        variantIds: [],
-      ),
-      Product(
-        id: '2',
-        name: 'Catch Cumin Seeds',
-        category: 2, // Spices
-        brand: 2, // Catch
-        type: 'simple',
-        isFeatured: true,
-        inStock: true,
-        regularPrice: 65,
-        salePrice: 38,
-        sku: 'CUMIN001',
-        published: true,
-        createdAt: DateTime.now().subtract(const Duration(days: 15)),
-        updatedAt: DateTime.now(),
-        imageUrl: 'assets/products/cumin.png',
-        variantIds: [],
-      ),
-    ];
+  // ---------- Improved Placeholder Helpers ----------
+
+  // Map main-category -> keywords
+  static const Map<String, List<String>> _tagMap = {
+    'Vegetables & Fruits': ['vegetable', 'fruit'],
+    'Ghee & Masala': ['ghee', 'spices'],
+    'Bread & Eggs': ['bread', 'eggs'],
+    'Coffee & Milk Drinks': ['coffee', 'milk'],
+    'Rice & Dal': ['rice', 'lentils'],
+    'Snacks & Drink': ['snacks', 'drinks'],
+    'Grocery & Kitchen': ['grocery', 'kitchen'],
+    'Household Essentials': ['household', 'cleaning'],
+    'Beauty & Personal Care': ['beauty', 'personalcare'],
+  };
+
+  // Simplified URL generator
+  String _generatePlaceholderUrl({required String seed, required List<String> tags, int width = 220, int height = 220}) {
+    // Clean the seed and tags
+    final cleanSeed = seed.replaceAll(RegExp(r'[^a-zA-Z0-9-]'), '-').toLowerCase();
+    final cleanTags = tags.map((t) => t.replaceAll(' ', '')).join(',');
+    
+    return 'https://loremflickr.com/$width/$height/$cleanTags?random=$cleanSeed';
+  }
+
+  // Build 4 images for a top-category mosaic
+  List<String> _relatedMosaicForMain(String main) {
+    final tags = _tagMap[main] ?? ['grocery'];
+    return List<String>.generate(4, (i) {
+      return _generatePlaceholderUrl(
+        seed: '${main}_$i',
+        tags: tags,
+      );
+    });
+  }
+
+  // Subcategory thumbnail based on its main bucket + sub name
+  String _subCategoryThumb({required String main, required String sub}) {
+    final tags = [
+      ...(_tagMap[main] ?? ['grocery']),
+      sub.split(RegExp(r'\s+|&|,|>')).firstWhere((e) => e.isNotEmpty, orElse: () => '').toLowerCase(),
+    ].where((t) => t.isNotEmpty).toList();
+    
+    return _generatePlaceholderUrl(
+      seed: '$main-$sub',
+      tags: tags,
+      width: 160,
+      height: 160,
+    );
+  }
+
+  // Product fallback
+  String _productPlaceholder(String name) {
+    return _generatePlaceholderUrl(
+      seed: 'product-${name.replaceAll(' ', '-')}',
+      tags: ['grocery', 'product'],
+      width: 400,
+      height: 400,
+    );
+  }
+
+  String _displayTitleForTop(String apiName) {
+    if (apiName == 'Ghee & Masala') return 'Oil,Ghee & Masala';
+    if (apiName == 'Bread & Eggs') return 'Dairy, Bread & Eggs';
+    return apiName;
+  }
+}
+
+// ======= Widgets =======
+
+// 2x2 mosaic category card used in the top six
+class _TopCategoryMosaicCard extends StatelessWidget {
+  const _TopCategoryMosaicCard({
+    required this.title,
+    required this.images,
+  });
+
+  final String title;
+  final List<String> images;
+
+  @override
+  Widget build(BuildContext context) {
+    final tiles = images.take(4).map((url) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Image.network(
+          url,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => Container(
+            color: Colors.grey[200],
+            child: const Icon(Icons.image_not_supported),
+          ),
+        ),
+      );
+    }).toList();
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            'Hot deals',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+        Container(
+          height: 84,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF1F3F4),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          padding: const EdgeInsets.all(6),
+          child: GridView.count(
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 2,
+            crossAxisSpacing: 6,
+            mainAxisSpacing: 6,
+            children: tiles,
           ),
         ),
         const SizedBox(height: 8),
         SizedBox(
-          height: 240,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: hotDeals.length,
-            itemBuilder: (context, index) {
-              return Container(
-                width: 160,
-                margin: EdgeInsets.only(
-                  right: index == hotDeals.length - 1 ? 0 : 16,
-                ),
-                child: _buildProductCard(hotDeals[index], context),
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: 24),
-      ],
-    );
-  }
-
-  Widget _buildDailyFreshSection(BuildContext context) {
-    final dailyItems = [
-      Product(
-        id: '3',
-        name: 'Fresh Tomatoes',
-        category: 3, // Vegetables
-        brand: 3, // Farm Fresh
-        type: 'simple',
-        isFeatured: false,
-        inStock: true,
-        regularPrice: 32,
-        salePrice: 25,
-        sku: 'TOMATO001',
-        published: true,
-        createdAt: DateTime.now().subtract(const Duration(days: 1)),
-        updatedAt: DateTime.now(),
-        imageUrl: 'assets/products/tomato.png',
-        variantIds: [],
-      ),
-      Product(
-        id: '4',
-        name: 'Bitter Gourd',
-        category: 3, // Vegetables
-        brand: 3, // Farm Fresh
-        type: 'simple',
-        isFeatured: false,
-        inStock: true,
-        regularPrice: 45,
-        salePrice: 30,
-        sku: 'GOURD001',
-        published: true,
-        createdAt: DateTime.now().subtract(const Duration(days: 1)),
-        updatedAt: DateTime.now(),
-        imageUrl: 'assets/products/gourd.png',
-        variantIds: [],
-      ),
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16),
+          height: 32,
           child: Text(
-            'Daily fresh needs',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+            title,
+            maxLines: 2,
+            textAlign: TextAlign.center,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
           ),
         ),
-        const SizedBox(height: 8),
-        GridView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            childAspectRatio: 0.75,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-          ),
-          itemCount: dailyItems.length,
-          itemBuilder: (context, index) {
-            return _buildProductCard(dailyItems[index], context);
-          },
-        ),
-        const SizedBox(height: 24),
       ],
     );
   }
+}
 
-  Widget _buildProductCard(Product product, BuildContext context) {
-    final cart = Provider.of<Cart>(context, listen: false);
+// Flash sale product card (3 per row look)
+class _FlashCard extends StatelessWidget {
+  const _FlashCard({
+    required this.product,
+    required this.fallbackGetter,
+  });
+
+  final Product product;
+  final String Function(String name) fallbackGetter;
+
+  @override
+  Widget build(BuildContext context) {
+    final image = (product.imageUrl.isNotEmpty)
+        ? product.imageUrl
+        : fallbackGetter(product.name);
 
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade200),
-        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE6E8EA)),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Product image with badges
-          Stack(
-            children: [
-              Container(
-                height: 120,
-                decoration: BoxDecoration(
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(8)),
-                  image: DecorationImage(
-                    image: AssetImage(product.imageUrl),
-                    fit: BoxFit.cover,
-                  ),
-                ),
+          ClipRRect(
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(12)),
+            child: Image.network(
+              image,
+              height: 110,
+              width: double.infinity,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => Container(
+                height: 110,
+                color: Colors.grey[200],
+                child: const Icon(Icons.image_not_supported),
               ),
-              if (product.isOnSale)
-                Positioned(
-                  top: 8,
-                  left: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.red[600],
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      '${product.salePercentage}% OFF',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
+            ),
           ),
-          // Product details
           Padding(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.fromLTRB(8, 10, 8, 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Product name
                 Text(
                   product.name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w600),
                 ),
-                const SizedBox(height: 8),
-                // Price and Add button
+                const SizedBox(height: 6),
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Rs${product.currentPrice.toStringAsFixed(2)}',
+                          'Rs ${product.currentPrice.toStringAsFixed(0)}',
                           style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                         if (product.isOnSale)
                           Text(
-                            'Rs${product.regularPrice.toStringAsFixed(2)}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[600],
+                            'Rs ${product.regularPrice.toStringAsFixed(0)}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey,
                               decoration: TextDecoration.lineThrough,
                             ),
                           ),
                       ],
                     ),
                     const Spacer(),
-                    // Add button
-                    GestureDetector(
-                      onTap: () {
-                        cart.addItem(product);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('${product.name} added to cart'),
-                            duration: const Duration(seconds: 1),
-                          ),
-                        );
-                      },
-                      child: Container(
-                        width: 60,
-                        height: 30,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.green),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Center(
-                          child: Text(
-                            'ADD',
-                            style: TextStyle(
-                              color: Colors.green,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                    Container(
+                      width: 46,
+                      height: 26,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xFF2E7D32)),
+                        color: Colors.white,
+                      ),
+                      alignment: Alignment.center,
+                      child: const Text(
+                        'ADD',
+                        style: TextStyle(
+                          color: Color(0xFF2E7D32),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
                         ),
                       ),
                     ),
