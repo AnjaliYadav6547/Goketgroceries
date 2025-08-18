@@ -99,7 +99,7 @@ class _SubCategoryPageState extends State<SubCategoryPage> {
                             Expanded(
                               child: _buildProductCard(
                                 product: Product(
-                                  id: '1',
+                                  id: 1,
                                   name: 'Onion (Eerulli)',
                                   // weight: '(0.95-1.05) kg',
                                   regularPrice: 46,
@@ -127,7 +127,7 @@ class _SubCategoryPageState extends State<SubCategoryPage> {
                             Expanded(
                               child: _buildProductCard(
                                 product: Product(
-                                  id: '2',
+                                  id: 2,
                                   name: 'Potato',
                                   // weight: '(0.95-1.05) kg',
                                   regularPrice: 48,
@@ -162,7 +162,7 @@ class _SubCategoryPageState extends State<SubCategoryPage> {
                             Expanded(
                               child: _buildProductCard(
                                 product: Product(
-                                  id: '3',
+                                  id: 3,
                                   name: 'Desi Tomato 500 g (Naati Tomato)',
                                   // weight: '500 g',
                                   regularPrice: 19,
@@ -190,7 +190,7 @@ class _SubCategoryPageState extends State<SubCategoryPage> {
                             Expanded(
                               child: _buildProductCard(
                                 product: Product(
-                                  id: '4',
+                                  id: 4,
                                   name: 'Hybrid Tomato 500 g',
                                   // weight: '500 g',
                                   regularPrice: 22,

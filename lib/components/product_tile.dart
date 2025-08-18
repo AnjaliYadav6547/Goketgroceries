@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
-import 'my_button.dart';
-import '../models/product.dart';
+import '../models/product.dart' as model;
+import '../pages/product_detail.dart';
 
 class ProductTile extends StatelessWidget {
-  final Product product;
-  final VoidCallback onAddToCart;
+  final model.Product product;
   final VoidCallback onTap;
+  final VoidCallback onAddToCart;
+  
 
   const ProductTile({
     super.key,
     required this.product,
-    required this.onAddToCart,
     required this.onTap,
+    required this.onAddToCart,
+    
   });
 
   // Helper method to determine if strikethrough should be shown
@@ -24,11 +26,25 @@ class ProductTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: () {
+        // Call the provided onTap callback if it exists
+        if (onTap != null) {
+          onTap();
+        } else {
+          // Default navigation behavior
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ProductDetailPage(productId: product.id),
+            ),
+          );
+        }
+      },
       child: Container(
         decoration: BoxDecoration(
           border: Border.all(color: Colors.grey.shade200),
           borderRadius: BorderRadius.circular(8),
+          color: Colors.white,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -37,8 +53,8 @@ class ProductTile extends StatelessWidget {
             Stack(
               children: [
                 Container(
-                  height: 120, // Fixed height for the container
-                  width: double.infinity, // Take full width
+                  height: 100,
+                  width: double.infinity,
                   decoration: BoxDecoration(
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
                     color: Colors.grey.shade200,
@@ -46,58 +62,45 @@ class ProductTile extends StatelessWidget {
                   child: product.imageUrl.isNotEmpty
                       ? ClipRRect(
                           borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-                          child: FittedBox(
+                          child: Image.network(
+                            product.imageUrl,
                             fit: BoxFit.cover,
-                            child: Image.network(
-                              product.imageUrl,
-                              width: MediaQuery.of(context).size.width, // Full width
-                              height: 120, // Match container height
-                              loadingBuilder: (context, child, loadingProgress) {
-                                return child;
-                              },
-                              errorBuilder: (context, error, stackTrace) {
-                                return Center(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(Icons.broken_image),
-                                      Text(
-                                        'Image not available',
-                                        style: TextStyle(fontSize: 8),
-                                        ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
+                            width: double.infinity,
+                            height: double.infinity,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.broken_image, size: 30),
+                                    Text(
+                                      'Image not available',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
                           ),
                         )
-
-                    
                       : Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.image_not_supported, size:20),
-                              const Text(
-                                'No image URL provided',
-                                style: TextStyle(fontSize: 10),
-                                ),
-                              Text(
-                                'Check debug logs',
-                                style: TextStyle(fontSize: 8, color: Colors.grey.shade600),
-                              ),
-                            ],
+                          child: Icon(
+                            Icons.image_not_supported,
+                            size: 30,
+                            color: Colors.grey.shade400,
                           ),
                         ),
                 ),
+                // Sale badge
                 if (product.isOnSale && _shouldShowStrikethrough())
                   Positioned(
                     top: 8,
                     left: 8,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
                         color: Colors.red,
                         borderRadius: BorderRadius.circular(4),
@@ -112,20 +115,25 @@ class ProductTile extends StatelessWidget {
                       ),
                     ),
                   ),
+                // Stock status badge
                 Positioned(
                   bottom: 8,
                   left: 8,
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: const Color.fromARGB(255, 94, 93, 93)
-                          .withOpacity(0.7),
+                      color: product.inStock 
+                          ? Colors.green.withOpacity(0.8)
+                          : Colors.red.withOpacity(0.8),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.timer, size: 12, color: Colors.white),
+                        Icon(
+                          product.inStock ? Icons.check : Icons.close,
+                          size: 12,
+                          color: Colors.white,
+                        ),
                         const SizedBox(width: 2),
                         Text(
                           product.inStock ? 'IN STOCK' : 'OUT OF STOCK',
@@ -138,13 +146,13 @@ class ProductTile extends StatelessWidget {
                     ),
                   ),
                 ),
+                // Featured badge
                 if (product.isFeatured)
                   Positioned(
                     top: 8,
                     right: 8,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
                         color: Colors.blue,
                         borderRadius: BorderRadius.circular(4),
@@ -163,34 +171,24 @@ class ProductTile extends StatelessWidget {
             ),
             // Product details
             Padding(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(8.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Product name
+                  // Product name - single line with ellipsis
                   Text(
                     product.name,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 12,
                     ),
-                    maxLines: 2,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-                  // SKU and Type
-                  Text(
-                    '${product.sku ?? 'N/A'} | ${product.type.toUpperCase()}',
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 10,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
                   // Price and Add button
                   Row(
                     children: [
-                      // Price with strike-through
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -198,14 +196,14 @@ class ProductTile extends StatelessWidget {
                             'Rs ${product.currentPrice.toStringAsFixed(2)}',
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
-                              fontSize: 14,
+                              fontSize: 12,
                             ),
                           ),
                           if (_shouldShowStrikethrough())
                             Text(
                               'Rs ${product.regularPrice.toStringAsFixed(2)}',
                               style: TextStyle(
-                                fontSize: 10,
+                                fontSize: 9,
                                 color: Colors.grey[600],
                                 decoration: TextDecoration.lineThrough,
                               ),
@@ -213,23 +211,28 @@ class ProductTile extends StatelessWidget {
                         ],
                       ),
                       const Spacer(),
-                      // Add button (disabled if out of stock)
-                      GestureDetector(
+                      // Add button
+                      InkWell(
                         onTap: product.inStock ? onAddToCart : null,
+                        borderRadius: BorderRadius.circular(4),
                         child: Container(
-                          width: 60,
-                          height: 30,
+                          width: 40,
+                          height: 25,
                           decoration: BoxDecoration(
                             border: Border.all(
-                              color: product.inStock ? Colors.green : Colors.grey),
+                              color: product.inStock ? Colors.green : Colors.grey,
+                            ),
                             borderRadius: BorderRadius.circular(4),
+                            color: product.inStock 
+                                ? Colors.green.withOpacity(0.1)
+                                : Colors.grey.withOpacity(0.1),
                           ),
                           child: Center(
                             child: Text(
                               product.inStock ? 'ADD' : 'SOLD',
                               style: TextStyle(
                                 color: product.inStock ? Colors.green : Colors.grey,
-                                fontSize: 14,
+                                fontSize: 12,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),

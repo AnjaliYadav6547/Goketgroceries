@@ -81,6 +81,7 @@ class _MainWrapperState extends State<MainWrapper> {
         return const CartPage();
       },
     ),
+    const ProfilePage(), // Added profile page
   ];
 
   void _navigateBottomBar(int index) {
@@ -113,6 +114,10 @@ class _MainWrapperState extends State<MainWrapper> {
           BottomNavigationBarItem(
             icon: Icon(Icons.shopping_cart),
             label: 'Cart',
+          ),
+          BottomNavigationBarItem( // Added account/profile item
+            icon: Icon(Icons.person),
+            label: 'Account',
           ),
         ],
         selectedItemColor: Colors.green,

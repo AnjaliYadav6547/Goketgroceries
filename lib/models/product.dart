@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'productdetail.dart';
 
 class Product {
-  final String id;
+  final int id;
   final String name;
-  final int category; // Changed from mainCategory to match API (category ID)
-  final int brand; // Changed to brand ID to match API
-  final String type; // 'simple' or 'variation'
+  final int category;
+  final int brand;
+  final String type;
   final bool isFeatured;
   final bool inStock;
   final double regularPrice;
@@ -14,8 +15,11 @@ class Product {
   final bool published;
   final DateTime createdAt;
   final DateTime updatedAt;
-  final String imageUrl; // Assuming this comes from ProductImage relationship
-  final List<String> variantIds; // Assuming these come from ProductVariant relationship
+  final String imageUrl;
+  final List<String> variantIds;
+  final List<ProductVariation> variations;
+  final List<Category> categories;
+  final List<ProductImage> images;
 
   Product({
     required this.id,
@@ -33,16 +37,17 @@ class Product {
     required this.updatedAt,
     required this.imageUrl,
     this.variantIds = const [],
+    this.variations = const [],
+    this.categories = const [],
+    this.images = const [],
   });
 
-  // Getters
   double get currentPrice => salePrice ?? regularPrice;
   bool get isOnSale => salePrice != null;
   int get salePercentage => isOnSale 
       ? (100 - (salePrice! / regularPrice * 100)).round() 
       : 0;
 
-  // Convert to Map for API/database
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -60,70 +65,35 @@ class Product {
       'updated_at': updatedAt.toIso8601String(),
       'image_url': imageUrl,
       'variant_ids': variantIds,
+      'variations': variations.map((v) => v.toJson()).toList(),
+      'categories': categories.map((c) => c.toJson()).toList(),
+      'images': images.map((i) => i.toJson()).toList(),
     };
   }
 
-  // Create Product from API/database Map
   factory Product.fromMap(Map<String, dynamic>? map) {
     if (map == null) return Product.empty();
 
-    // Debug print to see actual API response structure
-      // Debug print the entire image-related data
-    debugPrint('Image data from API: ${map['image']}');
-    debugPrint('Images array from API: ${map['images']}');
-    debugPrint('Image URL from API: ${map['image_url']}');
-
-    // Enhanced image URL extraction
     String parseImageUrl(Map<String, dynamic> data) {
-      // Debug the entire data structure for images
-      debugPrint('Full image data structure: ${data['images']}');
-      
-      // Check direct image_url field first
-      if (data['image_url'] is String && (data['image_url'] as String).isNotEmpty) {
-        return data['image_url'];
-      }
-
-      // Handle images array - this is the main fix
-      if (data['images'] is List && (data['images'] as List).isNotEmpty) {
-        final firstImage = (data['images'] as List).first;
-        
-        if (firstImage is Map) {
-          // Check for image_url in the first image object
-          if (firstImage['image_url'] is String && 
-              (firstImage['image_url'] as String).isNotEmpty) {
-            return firstImage['image_url'];
-          }
-          // Fallback to other common field names
-          if (firstImage['url'] is String && (firstImage['url'] as String).isNotEmpty) {
-            return firstImage['url'];
-          }
-          if (firstImage['src'] is String && (firstImage['src'] as String).isNotEmpty) {
-            return firstImage['src'];
+      try {
+        if (data['images'] is List && data['images'].isNotEmpty) {
+          final firstImage = data['images'].first;
+          if (firstImage is String) return firstImage;
+          if (firstImage is Map) {
+            return firstImage['image']?.toString() ?? 
+                  firstImage['url']?.toString() ?? 
+                  firstImage['src']?.toString() ?? '';
           }
         }
-        
-        // Handle case where images array contains direct URLs
-        if (firstImage is String && firstImage.isNotEmpty) {
-          return firstImage;
-        }
+        return data['image_url']?.toString() ?? 
+              data['image']?.toString() ?? 
+              '';
+      } catch (e) {
+        debugPrint('Image parsing error: $e');
+        return '';
       }
-
-      // Fallback to other possible locations
-      if (data['image'] is String && (data['image'] as String).isNotEmpty) {
-        return data['image'];
-      }
-      
-      if (data['image'] is Map) {
-        final imageMap = data['image'] as Map;
-        if (imageMap['url'] is String) return imageMap['url'];
-        if (imageMap['src'] is String) return imageMap['src'];
-      }
-
-      debugPrint('No valid image URL found in product data');
-      return ''; // Return empty string if no image found
     }
 
-    // Handle price parsing (some APIs return strings)
     double parsePrice(dynamic price) {
       if (price == null) return 0;
       if (price is num) return price.toDouble();
@@ -132,13 +102,13 @@ class Product {
       }
       return 0;
     }
+
     dynamic salePriceValue = map['sale_price'];
     double? salePrice;
     
     if (salePriceValue != null) {
       if (salePriceValue is String) {
         salePrice = double.tryParse(salePriceValue);
-        // Treat "0.00" as null (no sale)
         if (salePrice == 0.0) salePrice = null;
       } else if (salePriceValue is num) {
         salePrice = salePriceValue.toDouble();
@@ -146,14 +116,13 @@ class Product {
       }
     }
 
-
     return Product(
-      id: map['id']?.toString() ?? '',
+      id: int.tryParse(map['id']?.toString() ?? '0') ?? 0,
       name: map['name']?.toString() ?? 'Unnamed Product',
-      category: (map['category'] is int) ? map['category'] : 
-              (map['category'] is Map) ? map['category']['id'] ?? 0 : 0,
-      brand: (map['brand'] is int) ? map['brand'] : 
-            (map['brand'] is Map) ? map['brand']['id'] ?? 0 : 0,
+      category: (map['category'] is int) ? map['category'] 
+              : (map['category'] is Map) ? map['category']['id'] ?? 0 : 0,
+      brand: (map['brand'] is int) ? map['brand'] 
+            : (map['brand'] is Map) ? map['brand']['id'] ?? 0 : 0,
       type: map['type']?.toString() ?? 'simple',
       isFeatured: map['featured'] ?? map['is_featured'] ?? false,
       inStock: map['in_stock'] ?? map['stock_status'] == 'instock' ?? true,
@@ -166,12 +135,67 @@ class Product {
       updatedAt: DateTime.tryParse(map['date_modified'] ?? 
                 map['updated_at'] ?? '') ?? DateTime.now(),
       imageUrl: parseImageUrl(map),
-      variantIds: (map['variations'] as List?)?.map((v) => v.toString()).toList() ?? [],
+      variantIds: (map['variants'] as List?)?.map((v) => v['id'].toString()).toList() ?? [],
+      variations: (map['variants'] as List?)?.map((v) {
+        try {
+          return ProductVariation.fromJson(v);
+        } catch (e) {
+          debugPrint('Error parsing variation: $e');
+          return ProductVariation(
+            id: 0,
+            value: 'Unknown',
+            price: 0.0,
+            regularPrice: 0.0,
+            salePrice: 0.0,
+            attributeName: 'Size',
+            visible: true,
+            position: 0,
+          );
+        }
+      }).toList() ?? [],
+      categories: (map['categories'] as List?)?.map((c) {
+        try {
+          return Category.fromJson(c);
+        } catch (e) {
+          debugPrint('Error parsing category: $e');
+          return Category(id: 0, name: 'Unknown');
+        }
+      }).toList() ?? [],
+      images: (map['images'] as List?)?.map((i) {
+        try {
+          if (i is String) {
+            return ProductImage(
+              id: 0,
+              image: i,
+              optimized: i,
+              thumbnail: i,
+            );
+          } else if (i is Map<String, dynamic>) {
+            return ProductImage.fromJson(i);
+          }
+          return ProductImage(
+            id: 0,
+            image: '',
+            optimized: '',
+            thumbnail: '',
+          );
+        } catch (e) {
+          debugPrint('Error parsing image: $e');
+          return ProductImage(
+            id: 0,
+            image: '',
+            optimized: '',
+            thumbnail: '',
+          );
+        }
+      }).toList() ?? [],
     );
   }
 
+  factory Product.fromJson(Map<String, dynamic> json) => Product.fromMap(json);
+
   static Product empty() => Product(
-    id: '',
+    id: 0,
     name: 'Empty Product',
     category: 0,
     brand: 0,
@@ -186,9 +210,11 @@ class Product {
     updatedAt: DateTime.now(),
     imageUrl: 'assets/default.png',
     variantIds: [],
+    variations: [],
+    categories: [],
+    images: [],
   );
 
-  // For filtering
   bool matchesFilters({
     String? nameQuery,
     int? categoryId,
@@ -202,7 +228,7 @@ class Product {
     if (nameQuery != null && !name.toLowerCase().contains(nameQuery.toLowerCase())) {
       return false;
     }
-    if (categoryId != null && category != categoryId) {
+    if (categoryId != null && !categories.any((c) => c.id == categoryId)) {
       return false;
     }
     if (brandId != null && brand != brandId) {
@@ -225,5 +251,50 @@ class Product {
       return false;
     }
     return true;
+  }
+
+  // Helper method to get the first available image URL
+  String get displayImageUrl {
+    if (images.isNotEmpty) {
+      return images.first.image;
+    }
+    return imageUrl;
+  }
+
+  // Helper method to get the display price (considers variations)
+  double get displayPrice {
+    if (variations.isNotEmpty) {
+      return variations.first.price;
+    }
+    return currentPrice;
+  }
+
+  // Helper method to get the display variation value if exists
+  String? get displayVariation {
+    if (variations.isNotEmpty) {
+      return variations.first.value;
+    }
+    return null;
+  }
+}
+
+extension CategoryExtension on Category {
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+       
+    };
+  }
+}
+
+extension ProductImageExtension on ProductImage {
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'image': image,
+      'optimized': optimized,
+      'thumbnail': thumbnail,
+    };
   }
 }

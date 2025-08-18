@@ -1,13 +1,14 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
-import '../components/product_tile.dart';
-import '../components/my_button.dart';
-import '../components/my_textfield.dart';
-import '../models/product.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
+import 'dart:math';
+import '../pages/product_detail.dart' hide Product;  
+import '../models/product.dart'; 
+import '../components/product_tile.dart';
+import '../components/my_button.dart';
+import '../components/my_textfield.dart';
+
 
 class ProductPage extends StatefulWidget {
   final List<Product> cartItems;
@@ -80,7 +81,7 @@ class _ProductPageState extends State<ProductPage> {
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
         
-        // Update pagination state (DON'T call setState here)
+        // pagination state
         _currentPage = decoded['current_page'] ?? 1;
         _totalProducts = decoded['count'] ?? 0;
         _totalPages = decoded['total_pages'] ?? 1;
@@ -173,7 +174,7 @@ class _ProductPageState extends State<ProductPage> {
     });
 
     try {
-      await _fetchProducts(); // Make sure this is awaited
+      await _fetchProducts(); 
     } catch (e) {
       setState(() {
         _error = 'Failed to load page: ${e.toString()}';
@@ -351,7 +352,7 @@ class _ProductPageState extends State<ProductPage> {
                   ),
                 )
               : _buildProductGrid(),
-              // Add pagination controls here
+              
                if (_products.isNotEmpty) _buildPaginationControls(),
 
               
@@ -401,10 +402,10 @@ class _ProductPageState extends State<ProductPage> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.7,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
+        crossAxisCount: 3, 
+        childAspectRatio: 0.65, 
+        crossAxisSpacing: 8, 
+        mainAxisSpacing: 8,
       ),
       itemCount: _products.length,
       itemBuilder: (context, index) {
@@ -421,7 +422,14 @@ class _ProductPageState extends State<ProductPage> {
             );
           },
           onTap: () {
-            // Handle product detail view
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ProductDetailPage(
+                  productId: product.id,
+                ),
+              ),
+            );
           },
         );
       },
@@ -577,20 +585,6 @@ class _ProductPageState extends State<ProductPage> {
       ),
     );
   }
-
-  // // Navigation methods - add these to your _ProductPageState class
-  // void _goToPage(int page) {
-  //   if (page >= 1 && page <= _totalPages && page != _currentPage) {
-  //     setState(() {
-  //       _currentPage = page;
-  //     });
-  //     _fetchProducts();
-  //   }
-  // }
-
-  // void _goToPrevPage() => _goToPage(_currentPage - 1);
-  // void _goToNextPage() => _goToPage(_currentPage + 1);
-
 }
 
 class ProductSearchDelegate extends SearchDelegate {
